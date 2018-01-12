@@ -13,16 +13,13 @@ predictions = pd.read_sql_query('SELECT week,pundit,team1,team2,score1 AS pred1,
 file2 = '/Users/tristinbeckman/Dropbox/stat/nfl/nfl_stats.sqlite'
 conn2 = sqlite3.connect(file2)
 
-# Need to do two inner joins to get the team names
+# Need to use subquery to get team names
 nfl_stats = pd.read_sql_query('SELECT Week,(SELECT team from Team WHERE id = team_id) AS team1,(SELECT team from Team WHERE id = opp_id) AS team2, Points_off AS points1, Points_def AS points2 FROM Stats WHERE Year=2017', conn2)
 
-# wins_16= pd.read_sql_query('SELECT Week,(SELECT team from Team WHERE id = team_id) AS team1, Tot_wins as tot_wins_16 FROM Stats WHERE Year=2016 ', conn2)
-# print(wins_16)
 # First file only contains team name; not city
 nfl_stats['team1'] = nfl_stats['team1'].str.split().str[-1]
 nfl_stats['team2'] = nfl_stats['team2'].str.split().str[-1]
 
-#print(nfl_stats)
 # Make buccaneers consistent
 predictions.loc[predictions.team1 == 'Bucs', 'team1'] = 'Buccaneers'
 predictions.loc[predictions.team2 == 'Bucs', 'team2'] = 'Buccaneers'
@@ -32,26 +29,20 @@ predictions.loc[predictions.pundit=='Michael Rothstein','pundit'] = 'Mike Rothst
 
 data = pd.merge(predictions,nfl_stats, how='left',left_on=['week','team1','team2'],right_on=['Week','team1','team2'])
 
-
 data = data.drop(columns=['Week'])
-
-# Need to turn point spreads to probabilities
-
-    # 'On the probability of winning a football game'
-        # Normal dist: mean zero, sd slightly less than 14 (13.86) Use 14
 
 # Get point spreads
     # Favorite always listed first; min data['spread'] is one
 data['spread'] = data['pred1'] - data['pred2']
 
-# Get probability (see  'On the probability of winning a football game')
+# Get probability (see 'On the probability of winning a football game')
 data['pred_prob'] = scipy.stats.norm(0,14).cdf(data['spread'])
 
 # Did predicted team win?
 data['win'] = data['points1'] > data['points2']
 data['win'] = data['win']*1 # turn into 1, 0
 
-# Briar score: MSE of forecast 1/n sum (pred_prob - win)^2
+# Brier score: MSE of forecast 1/n sum (pred_prob - win)^2
 data['squared_error'] = (data['pred_prob'] - data['win'])**2
 
 
